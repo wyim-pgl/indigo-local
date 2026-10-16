@@ -28,3 +28,6 @@ fi
 
 # Plot results
 Rscript ${BASEDIR}/R/indigo.R ${6}
+
+# HTML report (like the web app)
+python3 ${BASEDIR}/indigo_report.py ${6}.json
