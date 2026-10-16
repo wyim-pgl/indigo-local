@@ -129,6 +129,11 @@ The report loads Plotly and Bootstrap from a CDN, so an internet connection is n
 
 ## Example
 
+![Double peaks after the edit site](docs/img/fig1_chromatogram_double_peaks.png)
+
+![Decomposition](docs/img/fig2_decomposition.png)
+
+
 [`example/`](example/) contains the result for the bundled sample (`server/sample.abi` vs. `server/sample.fa`, trims 50/50, pratio 0.33). The decomposition has its minimum at **−7 bp** — a heterozygous 7 bp deletion (`chrA:1226 GGAGGGTC>G`) with allele fractions of ~0.49 each.
 
 ## License
