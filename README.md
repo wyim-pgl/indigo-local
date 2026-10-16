@@ -4,6 +4,7 @@ Local command-line setup of [Indigo](https://github.com/gear-genomics/indigo) (g
 
 - **`indigo_report.py`** — renders the tracy JSON output as a standalone HTML report that looks like the Indigo web app (variants table, trace viewer, decomposition plot, alignments).
 - **`indigo_primer.py`** — primer-based trimming: finds the PCR primers in the basecalls and sets the left/right trim sizes before running Indigo.
+- **`indigo_batch.py`** / **`indigo_summary.py`** — run hundreds of traces in parallel (folder or sample sheet, resumable) and collect one `summary.tsv` + sortable `index.html`.
 
 The original Indigo README is kept in [README.original.md](README.original.md). Indigo and Tracy are developed by Tobias Rausch (EMBL) and licensed under GPL-3.0 / BSD-3 respectively.
 
@@ -15,10 +16,12 @@ The original Indigo README is kept in [README.original.md](README.original.md). 
 
 ## Installation
 
-### Option A: bioconda (easiest, not tested in this setup)
+### Option A: bioconda (easiest)
+
+> Pin `tracy=0.9.1`. Without the pin the solver picks tracy 0.5.3 together with current R/Python, and `indigo.sh` fails on the sample (exit 134). Tested 2026-10.
 
 ```bash
-micromamba create -n indigo -c conda-forge -c bioconda tracy r-base r-gplots r-ggplot2 r-reshape2 python
+micromamba create -n indigo -c conda-forge -c bioconda tracy=0.9.1 r-base r-gplots r-ggplot2 r-reshape2 python
 micromamba activate indigo
 git clone https://github.com/wyim-pgl/indigo-local.git
 ```
@@ -91,6 +94,28 @@ python3 indigo_primer.py sample.ab1 ref.fa -f ACGT... -r TGCA... --dry-run   # o
 | `-p` | peak ratio | 0.33 |
 
 Primers and their reverse complements are searched in the primary basecalls. A hit in the 5' half sets the left trim to the primer end, a hit in the 3' half sets the right trim from the primer start. Note that in a typical Sanger read the sequencing primer itself is not present, so usually only the opposite PCR primer is found (near the 3' end); the other side falls back to `--ltrim`/`--rtrim`.
+
+### Many samples (batch)
+
+```bash
+# all traces in a folder against one reference, 8 in parallel
+python3 indigo_batch.py -i traces/ -g ref.fa -o results/ -j 8
+
+# per-sample reference / primers / trims from a sample sheet (TSV or CSV)
+python3 indigo_batch.py -s samples.tsv -o results/ -j 8
+```
+
+`samples.tsv` (only `ab1` and `reference` are required; empty cells use the defaults):
+
+```
+sample	ab1	reference	fwd	rev	ltrim	rtrim	pratio
+KO1	traces/KO1.ab1	ref/geneA.fa		GCCATATTCAATTTTTACTT
+KO2	traces/KO2.ab1	ref/geneA.fa			70	70	0.33
+KO3	traces/KO3.ab1	traces/WT.ab1
+```
+
+Output: `results/<sample>/<sample>.*`, `results/logs/<sample>.log`, `results/status.tsv`, `results/summary.tsv`, `results/index.html`.
+Re-running the same command skips finished samples (use `--force` to redo). `call` in the summary (WT / het / hom / biallelic / check) is a heuristic from the decomposition curve; always confirm in the trace.
 
 ### HTML report only
 
