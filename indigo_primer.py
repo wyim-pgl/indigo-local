@@ -65,6 +65,7 @@ def main():
     ap.add_argument('--pad', type=int, default=0, help='extra bases to trim beyond a primer [0]')
     ap.add_argument('--ltrim', type=int, default=50, help='left trim if no primer found [50]')
     ap.add_argument('--rtrim', type=int, default=50, help='right trim if no primer found [50]')
+    ap.add_argument('-g', '--grna', help='guide RNA (20 nt) for the CRISPR panel of the HTML report')
     ap.add_argument('--tracy', default='tracy', help='tracy executable [tracy]')
     ap.add_argument('--dry-run', action='store_true', help='only report trim sizes')
     args = ap.parse_args()
@@ -111,7 +112,10 @@ def main():
         return
 
     indigo = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'indigo.sh')
-    sys.exit(subprocess.call([indigo, args.ab1, args.genome, str(ltrim), str(rtrim), str(args.pratio), args.out]))
+    cmd = [indigo, args.ab1, args.genome, str(ltrim), str(rtrim), str(args.pratio), args.out]
+    if args.grna:
+        cmd.append(args.grna)
+    sys.exit(subprocess.call(cmd))
 
 
 if __name__ == '__main__':

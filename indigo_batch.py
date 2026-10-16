@@ -8,7 +8,7 @@ or a sample sheet (TSV or CSV) for per-sample references / primers / trims:
   indigo_batch.py -s samples.tsv -o results/ -j 8
 
 Sample sheet columns (header required; only `ab1` and `reference` are mandatory):
-  sample  ab1  reference  fwd  rev  ltrim  rtrim  pratio
+  sample  ab1  reference  fwd  rev  ltrim  rtrim  pratio  grna
 Relative paths in the sheet are resolved against the sheet's folder.
 
 Each sample is written to <outdir>/<sample>/<sample>.* with a log in
@@ -67,6 +67,7 @@ def build_cmd(s, args, prefix):
     pratio = s.get('pratio') or str(args.pratio)
     fwd = s.get('fwd') or args.fwd
     rev = s.get('rev') or args.rev
+    grna = s.get('grna') or args.grna
     if fwd or rev:
         cmd = [sys.executable, os.path.join(HERE, 'indigo_primer.py'), s['ab1'], s['reference'],
                '-o', prefix, '-p', pratio, '--ltrim', ltrim, '--rtrim', rtrim, '-m', str(args.mismatches)]
@@ -74,8 +75,11 @@ def build_cmd(s, args, prefix):
             cmd += ['-f', fwd]
         if rev:
             cmd += ['-r', rev]
+        if grna:
+            cmd += ['-g', grna]
         return cmd
-    return [os.path.join(HERE, 'indigo.sh'), s['ab1'], s['reference'], ltrim, rtrim, pratio, prefix]
+    cmd = [os.path.join(HERE, 'indigo.sh'), s['ab1'], s['reference'], ltrim, rtrim, pratio, prefix]
+    return cmd + [grna] if grna else cmd
 
 
 def run_one(s, args):
@@ -117,6 +121,7 @@ def main():
     ap.add_argument('-p', '--pratio', type=float, default=0.33, help='default peak ratio [0.33]')
     ap.add_argument('-f', '--fwd', help='default forward primer (enables primer trimming)')
     ap.add_argument('-r', '--rev', help='default reverse primer (enables primer trimming)')
+    ap.add_argument('-G', '--grna', help='default guide RNA (20 nt) for the CRISPR panel / cut-site columns')
     ap.add_argument('-m', '--mismatches', type=int, default=2, help='max. primer mismatches [2]')
     ap.add_argument('--force', action='store_true', help='re-run samples that already have results')
     args = ap.parse_args()

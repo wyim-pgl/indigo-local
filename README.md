@@ -2,7 +2,7 @@
 
 Local command-line setup of [Indigo](https://github.com/gear-genomics/indigo) (gear-genomics) for detecting CRISPR/TALEN-induced SNVs and InDels in Sanger chromatograms, with two additions:
 
-- **`indigo_report.py`** — renders the tracy JSON output as a standalone HTML report that looks like the Indigo web app (variants table, trace viewer, decomposition plot, alignments).
+- **`indigo_report.py`** — renders the tracy JSON output as a standalone HTML report that looks like the Indigo web app (variants table, trace viewer, decomposition plot, alignments), with a short explanation under each section and a **CRISPR edit panel**: give the guide RNA and it highlights guide, PAM and Cas9 cut site and shows, per allele, the deleted/inserted bases, the InDel length and the distance to the cut site.
 - **`indigo_primer.py`** — primer-based trimming: finds the PCR primers in the basecalls and sets the left/right trim sizes before running Indigo.
 - **`indigo_batch.py`** / **`indigo_summary.py`** — run hundreds of traces in parallel (folder or sample sheet, resumable) and collect one `summary.tsv` + sortable `index.html`.
 
@@ -80,6 +80,19 @@ Use an uncompressed `.fa` reference: a `.fa.gz` is treated as a web-server genom
 
 Outputs: `<outprefix>.pdf`, `.html` (web-like report), `.decomp`, `.bcf`, `.align1-3`, `.json`.
 
+### CRISPR guide RNA (cut site, PAM, deletion length)
+
+Add the 20 nt protospacer (5'->3', PAM optional) as a 7th argument, `-g` in `indigo_primer.py`, `-G` / a `grna` column in `indigo_batch.py`:
+
+```bash
+./indigo.sh server/sample.abi server/sample.fa 50 50 0.33 out CATCCAGGCTTCCCTCTGGA
+python3 indigo_report.py out.json --grna CATCCAGGCTTCCCTCTGGA   # re-render an existing result
+```
+
+Defaults are SpCas9 (`--pam NGG`, cut 3 bp upstream of the PAM, `--cut-offset -3`). The guide is searched on both strands of the aligned reference (≤2 mismatches). The panel data is written to `<prefix>.crispr.json`; the batch summary gets `alt1_edit`, `alt2_edit` (e.g. `-7bp@1225(cut+0)`) and `cut_site` columns. (The guide above is only an example chosen next to the sample's deletion; the true guide of the sample data is not known.)
+
+![CRISPR panel](docs/img/fig5_crispr_panel.png)
+
 ### Indigo with primer trimming
 
 ```bash
@@ -110,7 +123,7 @@ python3 indigo_batch.py -s samples.tsv -o results/ -j 8
 `samples.tsv` (only `ab1` and `reference` are required; empty cells use the defaults):
 
 ```
-sample	ab1	reference	fwd	rev	ltrim	rtrim	pratio
+sample	ab1	reference	fwd	rev	ltrim	rtrim	pratio	grna
 KO1	traces/KO1.ab1	ref/geneA.fa		GCCATATTCAATTTTTACTT
 KO2	traces/KO2.ab1	ref/geneA.fa			70	70	0.33
 KO3	traces/KO3.ab1	traces/WT.ab1

@@ -17,6 +17,9 @@ Columns:
   call           heuristic: WT (only 0 fits), het (two lengths fit, one is 0),
                  biallelic (two non-zero lengths fit), hom (one non-zero length),
                  check (no clear minimum)
+  alt1/2_edit    InDels of each allele from its alignment, e.g. -7bp@1225(cut+0)
+                 (cut distance only when a guide RNA was given)
+  cut_site       Cas9 cut site (last base before the cut), if a guide RNA was given
   indels         InDel variants from the variant table (chr:pos ref>alt)
 """
 import csv
@@ -26,8 +29,8 @@ import os
 import sys
 
 FIELDS = ['sample', 'status', 'call', 'best_indel', 'best_error', 'second_indel', 'second_error',
-          'hetindel', 'allele1_frac', 'allele2_frac', 'align1_score', 'n_variants', 'n_pass',
-          'indels', 'ref_chr', 'ref_pos', 'report']
+          'hetindel', 'allele1_frac', 'allele2_frac', 'alt1_edit', 'alt2_edit', 'cut_site',
+          'align1_score', 'n_variants', 'n_pass', 'indels', 'ref_chr', 'ref_pos', 'report']
 
 
 def classify(points):
@@ -72,6 +75,20 @@ def summarize(path, folder):
     rows = [dict(zip(cols, r)) for r in v.get('rows', [])]
     row['n_variants'] = len(rows)
     row['n_pass'] = sum(1 for r in rows if r.get('filter') == 'PASS')
+    cj = os.path.splitext(path)[0] + '.crispr.json'
+    if os.path.exists(cj):
+        with open(cj) as f:
+            c = json.load(f)
+        for a in c.get('alleles', []):
+            evs = []
+            for e in a.get('indels', []):
+                tag = ('-' if e['type'] == 'deletion' else '+') + f"{e['length']}bp@{e['start']}"
+                if e.get('cut_distance') is not None:
+                    tag += f"(cut+{e['cut_distance']})"
+                evs.append(tag)
+            row[f"alt{a['allele']}_edit"] = ';'.join(evs) or 'none'
+        if c.get('guide'):
+            row['cut_site'] = c['guide']['cut_after']
     row['indels'] = ';'.join(f"{r.get('chr')}:{r.get('pos')}{r.get('ref')}>{r.get('alt')}"
                              for r in rows if r.get('type') in ('Deletion', 'Insertion'))
     return row
@@ -92,7 +109,7 @@ def main():
     seen = set()
     for root, _, files in os.walk(folder):
         for fn in sorted(files):
-            if not fn.endswith('.json'):
+            if not fn.endswith('.json') or fn.endswith('.crispr.json'):
                 continue
             name = fn[:-5]
             try:

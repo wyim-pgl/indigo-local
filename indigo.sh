@@ -1,13 +1,13 @@
 #!/bin/bash
 
-if [ $# -ne 6 ]
+if [ $# -ne 6 ] && [ $# -ne 7 ]
 then
     echo "**********************************************************************"
     echo "Indigo: This program comes with ABSOLUTELY NO WARRANTY."
     echo "Version: 0.1.2"
     echo "**********************************************************************"
     echo ""
-    echo "Usage: $0 <experiment.ab1> <reference.fa|wildtype.ab1> <ltrim> <rtrim> <pratio> <output prefix>"
+    echo "Usage: $0 <experiment.ab1> <reference.fa|wildtype.ab1> <ltrim> <rtrim> <pratio> <output prefix> [guide RNA]"
     echo ""
     exit -1
 fi
@@ -30,4 +30,4 @@ fi
 Rscript "${BASEDIR}/R/indigo.R" "$6"
 
 # HTML report (like the web app)
-python3 "${BASEDIR}/indigo_report.py" "$6.json"
+python3 "${BASEDIR}/indigo_report.py" "$6.json" ${7:+--grna "$7"}
