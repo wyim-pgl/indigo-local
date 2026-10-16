@@ -12,13 +12,14 @@ Sample sheet columns (header required; only `ab1` and `reference` are mandatory)
 Relative paths in the sheet are resolved against the sheet's folder.
 
 Each sample is written to <outdir>/<sample>/<sample>.* with a log in
-<outdir>/logs/<sample>.log. Samples whose <sample>.json already exists are
+<outdir>/logs/<sample>.log. Samples that already finished successfully are
 skipped, so an interrupted run can simply be restarted. At the end
 <outdir>/summary.tsv and <outdir>/index.html are written (indigo_summary.py).
 """
 import argparse
 import csv
 import os
+import re
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,7 +29,7 @@ TRACE_EXT = ('.ab1', '.abi', '.ab!', '.ab', '.scf')
 
 
 def read_sheet(path):
-    with open(path, newline='') as f:
+    with open(path, newline='', encoding='utf-8-sig') as f:  # utf-8-sig drops Excel's BOM
         dialect = 'excel-tab' if '\t' in f.readline() else 'excel'
         f.seek(0)
         rows = list(csv.DictReader(f, dialect=dialect))
@@ -55,6 +56,11 @@ def read_folder(folder, reference):
              'reference': os.path.abspath(reference)} for f in files]
 
 
+def safe_name(name):
+    name = re.sub(r'[^\w.-]', '_', name)
+    return '_' + name if name.startswith('.') or not name else name
+
+
 def build_cmd(s, args, prefix):
     ltrim = s.get('ltrim') or str(args.ltrim)
     rtrim = s.get('rtrim') or str(args.rtrim)
@@ -76,16 +82,26 @@ def run_one(s, args):
     name = s['sample']
     outdir = os.path.join(args.outdir, name)
     prefix = os.path.join(outdir, name)
-    if os.path.exists(prefix + '.json') and not args.force:
+    done = prefix + '.done'  # written only after indigo finished successfully
+    if os.path.exists(done) and not args.force:
         return name, 'skipped'
-    for key in ('ab1', 'reference'):
-        if not os.path.exists(s[key]):
-            return name, f'missing {key}: {s[key]}'
-    os.makedirs(outdir, exist_ok=True)
-    log = os.path.join(args.outdir, 'logs', name + '.log')
-    with open(log, 'w') as fh:
-        rc = subprocess.call(build_cmd(s, args, prefix), stdout=fh, stderr=subprocess.STDOUT, cwd=outdir)
-    return name, 'ok' if rc == 0 else f'failed (exit {rc}, see logs/{name}.log)'
+    try:
+        for key in ('ab1', 'reference'):
+            if not os.path.exists(s[key]):
+                return name, f'missing {key}: {s[key]}'
+        os.makedirs(outdir, exist_ok=True)
+        for ext in ('.done', '.json', '.html'):  # no stale results from an earlier run
+            if os.path.exists(prefix + ext):
+                os.remove(prefix + ext)
+        log = os.path.join(args.outdir, 'logs', name + '.log')
+        with open(log, 'w') as fh:
+            rc = subprocess.call(build_cmd(s, args, prefix), stdout=fh, stderr=subprocess.STDOUT, cwd=outdir)
+        if rc != 0:
+            return name, f'failed (exit {rc}, see logs/{name}.log)'
+        open(done, 'w').close()
+        return name, 'ok'
+    except Exception as e:
+        return name, f'failed ({e})'
 
 
 def main():
@@ -113,6 +129,8 @@ def main():
         samples = read_sheet(args.sheet)
     if not samples:
         sys.exit('No samples found.')
+    for s in samples:
+        s['sample'] = safe_name(s['sample'])
     names = [s['sample'] for s in samples]
     dups = sorted({n for n in names if names.count(n) > 1})
     if dups:

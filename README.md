@@ -66,7 +66,7 @@ Do not run two builds in the same directory at the same time (`clean.sh` deletes
 ### Indigo (fixed trim sizes)
 
 ```bash
-./indigo.sh <experiment.ab1> <reference.fa|.fa.gz|wildtype.ab1> <ltrim> <rtrim> <pratio> <outprefix>
+./indigo.sh <experiment.ab1> <reference.fa|wildtype.ab1> <ltrim> <rtrim> <pratio> <outprefix>
 ./indigo.sh server/sample.abi server/sample.fa 50 50 0.33 out
 ```
 
@@ -75,6 +75,8 @@ Do not run two builds in the same directory at the same time (`clean.sh` deletes
 | `ltrim` | `-q` / `--trimLeft` | 50 |
 | `rtrim` | `-u` / `--trimRight` | 50 |
 | `pratio` | `-p` / `--pratio` | 0.33 (33 on the web slider) |
+
+Use an uncompressed `.fa` reference: a `.fa.gz` is treated as a web-server genome index (bgzip + `tracy index`), and a plain gzip file makes tracy crash (exit 139).
 
 Outputs: `<outprefix>.pdf`, `.html` (web-like report), `.decomp`, `.bcf`, `.align1-3`, `.json`.
 
@@ -115,7 +117,7 @@ KO3	traces/KO3.ab1	traces/WT.ab1
 ```
 
 Output: `results/<sample>/<sample>.*`, `results/logs/<sample>.log`, `results/status.tsv`, `results/summary.tsv`, `results/index.html`.
-Re-running the same command skips finished samples (use `--force` to redo). `call` in the summary (WT / het / hom / biallelic / check) is a heuristic from the decomposition curve; always confirm in the trace.
+Re-running the same command skips samples that finished successfully and retries failed ones (use `--force` to redo all). Sample names are sanitized to letters, digits, `_`, `-`, `.`. `call` in the summary (WT / het / hom / biallelic / check) is a heuristic from the decomposition curve; always confirm in the trace.
 
 ### HTML report only
 

@@ -50,6 +50,8 @@ def classify(points):
 def summarize(path, folder):
     with open(path) as f:
         d = json.load(f)
+    if not isinstance(d, dict) or 'decomposition' not in d:
+        return None  # some other json file
     name = os.path.splitext(os.path.basename(path))[0]
     row = {'sample': name, 'status': 'ok', 'report': os.path.relpath(os.path.splitext(path)[0] + '.html', folder)}
     dec = d.get('decomposition') or {}
@@ -79,24 +81,35 @@ def main():
     if len(sys.argv) != 2:
         sys.exit(__doc__)
     folder = os.path.abspath(sys.argv[1])
-    out = []
-    seen = set()
-    for root, _, files in os.walk(folder):
-        for fn in sorted(files):
-            if fn.endswith('.json'):
-                try:
-                    r = summarize(os.path.join(root, fn), folder)
-                except (ValueError, KeyError) as e:
-                    r = {'sample': fn[:-5], 'status': f'unreadable json: {e}'}
-                out.append(r)
-                seen.add(r['sample'])
-    # samples that failed (from indigo_batch status.tsv) have no json
+    # status from indigo_batch.py (if present): a failure there wins over a leftover json
+    status = {}
     st = os.path.join(folder, 'status.tsv')
     if os.path.exists(st):
         with open(st) as f:
             for r in csv.DictReader(f, delimiter='\t'):
-                if r['sample'] not in seen:
-                    out.append({'sample': r['sample'], 'status': r['status']})
+                status[r['sample']] = r['status']
+    out = []
+    seen = set()
+    for root, _, files in os.walk(folder):
+        for fn in sorted(files):
+            if not fn.endswith('.json'):
+                continue
+            name = fn[:-5]
+            try:
+                r = summarize(os.path.join(root, fn), folder)
+            except Exception as e:
+                if os.path.basename(root) != name:
+                    continue  # not an indigo output, ignore
+                r = {'sample': name, 'status': f'unreadable json: {e}'}
+            if r is None:
+                continue
+            if status.get(r['sample'], 'ok') not in ('ok', 'skipped'):
+                r = {'sample': r['sample'], 'status': status[r['sample']]}
+            out.append(r)
+            seen.add(r['sample'])
+    for name, st_ in status.items():
+        if name not in seen:
+            out.append({'sample': name, 'status': st_})
     out.sort(key=lambda r: r['sample'])
 
     with open(os.path.join(folder, 'summary.tsv'), 'w', newline='') as f:

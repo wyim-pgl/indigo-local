@@ -3,7 +3,7 @@
 
 The trace is basecalled with tracy, the primer(s) and their reverse complements
 are located in the primary basecalls (mismatch-tolerant, IUPAC aware), and the
-left/right trim sizes are set so that everything up to and including a primer
+left/right trim sizes are set (only hits in the outer third of the read count) so that everything up to and including a primer
 near the 5' end, and from a primer near the 3' end onwards, is removed.
 If no primer is found on a side, the fallback trim size for that side is used.
 
@@ -69,9 +69,13 @@ def main():
     ap.add_argument('--dry-run', action='store_true', help='only report trim sizes')
     args = ap.parse_args()
 
-    primers = [p.upper().replace(' ', '') for p in (args.fwd, args.rev) if p]
-    if not primers:
+    args.fwd = (args.fwd or '').upper().replace(' ', '') or None
+    args.rev = (args.rev or '').upper().replace(' ', '') or None
+    if not (args.fwd or args.rev):
         ap.error('give at least one primer with -f and/or -r')
+    for p in (args.fwd, args.rev):
+        if p and (len(p) < 10 or set(p) - set(IUPAC)):
+            ap.error(f'primer "{p}" must be at least 10 nt of A/C/G/T/IUPAC codes')
 
     read = basecall(args.tracy, args.ab1, args.pratio)
     L = len(read)
@@ -81,14 +85,17 @@ def main():
     for name, primer in zip(['fwd', 'rev'], [args.fwd, args.rev]):
         if not primer:
             continue
-        primer = primer.upper().replace(' ', '')
         for orient, seq in (('+', primer), ('-', revcomp(primer))):
             hit = find_best(read, seq, args.mismatches)
             if hit is None:
                 continue
             mm, s, e = hit
-            side = 'left' if (s + e) / 2 < L / 2 else 'right'
-            print(f'  {name} primer ({orient}) at {s + 1}-{e}, {mm} mismatch(es) -> {side}', file=sys.stderr)
+            mid = (s + e) / 2
+            side = 'left' if mid < L / 3 else 'right' if mid > 2 * L / 3 else None
+            print(f'  {name} primer ({orient}) at {s + 1}-{e}, {mm} mismatch(es) -> '
+                  f'{side or "ignored (middle of the read)"}', file=sys.stderr)
+            if side is None:
+                continue
             if side == 'left':
                 left.append(e + args.pad)
             else:
